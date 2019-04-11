@@ -9,7 +9,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link0.obj"/>
+          <mesh filename="../../Model/meshes/visual/link0.obj"/>
         </geometry>
       </visual>
 <!--       <collision>
@@ -26,7 +26,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link1.obj"/>
+          <mesh filename="../../Model/meshes/visual/link1.obj"/>
         </geometry>
       </visual>
       <!-- <collision>
@@ -43,7 +43,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link2.obj"/>
+          <mesh filename="../../Model/meshes/visual/link2.obj"/>
         </geometry>
       </visual>
       <!-- <collision>
@@ -60,7 +60,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link3.obj"/>
+          <mesh filename="../../Model/meshes/visual/link3.obj"/>
         </geometry>
       </visual>
       <!-- <collision>
@@ -77,12 +77,12 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link4.obj"/>
+          <mesh filename="../../Model/meshes/visual/link4.obj"/>
         </geometry>
       </visual>
       <collision>
         <geometry>
-          <mesh filename="../../../Model/meshes/collision/link4.obj"/>
+          <mesh filename="../../Model/meshes/collision/link4.obj"/>
         </geometry>
       </collision>
     </link>
@@ -94,7 +94,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link5.obj"/>
+          <mesh filename="../../Model/meshes/visual/link5.obj"/>
         </geometry>
       </visual>
 <!--       <collision>
@@ -111,7 +111,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link6.obj"/>
+          <mesh filename="../../Model/meshes/visual/link6.obj"/>
         </geometry>
       </visual>
       <!-- <collision>
@@ -128,7 +128,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/link7.obj"/>
+          <mesh filename="../../Model/meshes/visual/link7.obj"/>
         </geometry>
       </visual>
       <!-- <collision>
@@ -139,7 +139,7 @@
       <visual>
         <origin xyz="0 0 0.107" rpy="0 0 -0.78539816339" />
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/hand.obj"/>
+          <mesh filename="../../Model/meshes/visual/hand.obj"/>
         </geometry>
       </visual>
 <!--       <collision>
@@ -157,7 +157,7 @@
       </inertial>
       <visual>
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/finger.obj"/>
+          <mesh filename="../../Model/meshes/visual/finger.obj"/>
         </geometry>
       </visual>
 <!--       <collision>
@@ -175,7 +175,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 3.14159265359" />
         <geometry>
-          <mesh filename="../../../Model/meshes/visual/finger.obj"/>
+          <mesh filename="../../Model/meshes/visual/finger.obj"/>
         </geometry>
       </visual>
 <!--       <collision>

@@ -71,11 +71,16 @@ int main() {
     while (!glfwWindowShouldClose(window))
 	{
         // update robot position
-        robot1->_q[0] = (double) counter/100.0;
-        robot1->updateKinematics();
+        for(unsigned int i = 0; i<dof-2;i++)
+        {
+            robot1->_q[i] = (double) counter/100.0;
 
-        robot2->_q[0] = (double) counter/100.0;
+            robot2->_q[i] = (double) counter/100.0;
+        }
+
+        robot1->updateKinematics();
         robot2->updateKinematics();
+
 
 		// update graphics. this automatically waits for the correct amount of time
 		int width, height;
