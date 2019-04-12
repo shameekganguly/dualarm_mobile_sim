@@ -5,11 +5,11 @@
 
 	<robot name="PANDA1">
 		<model dir="./resources" path="panda_arm_hand.urdf" name="panda_hand" />
-		<origin xyz="0.0 -0.5 0.5" rpy="0 0 0" />
+		<origin xyz="0.0 -0.5 0.5" rpy="1.0 0 1.0" />
 	</robot>
 	<robot name="PANDA2">
 		<model dir="./resources" path="panda_arm_hand.urdf" name="panda_hand" />
-		<origin xyz="0.0 0.0 0.5" rpy="0 0 3.14159" />
+		<origin xyz="0.0 0.0 0.5" rpy="-1.0 0 -1.0" />
 	</robot>
 
 	<static_object name="Floor">
@@ -53,8 +53,8 @@
 
 	<camera name="camera_fixed">
 		<position xyz="2.0 0.0 1.5" />
-		<vertical xyz="0.0 0.0 1.0" />
-		<lookat xyz="0.0 0.0 0.5" />
+		<vertical xyz="0.0 0.0 10.0" />
+		<lookat xyz="0.0 0.0 1.0" />
 	</camera>
 
 	<!-- TODO: support stereo specification -->

@@ -23,6 +23,9 @@ void glfwError(int error, const char* description);
 // callback when a key is pressed
 void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
+// callback when a mouse button is pressed
+void mouseClick(GLFWwindow* window, int button, int action, int mods);
+
 // flags for scene camera movement
 bool fTransXp = false;
 bool fTransXn = false;
@@ -105,6 +108,7 @@ int main() {
 
     // set callbacks
 	glfwSetKeyCallback(window, keySelect);
+    glfwSetMouseButtonCallback(window, mouseClick);
 
     // cache variables
     double last_cursorx, last_cursory;
@@ -120,7 +124,7 @@ int main() {
         unsigned int K = dof-2;
         for(unsigned int i = 0; i<K;i++)
         {   
-            double increment = (double) counter/100.0;
+            double increment = (double) counter/500.0;
 
             robot1->_q[i] = saturateJointValue(increment,panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
             robot2->_q[i] = saturateJointValue(increment,panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
@@ -205,8 +209,7 @@ int main() {
         }
         graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
         glfwGetCursorPos(window, &last_cursorx, &last_cursory);
-
-        //end active camera action code
+        //end camera movement code
 
 
         counter++;
@@ -274,5 +277,33 @@ double saturateJointValue(double jointInputVal, double jointLimitMax, double joi
     else
     {
         return jointInputVal;
+    }
+}
+
+
+void mouseClick(GLFWwindow* window, int button, int action, int mods) {
+    bool set = (action != GLFW_RELEASE);
+    //TODO: mouse interaction with robot
+    switch (button) {
+        // left click pans and tilts
+        case GLFW_MOUSE_BUTTON_LEFT:
+            fRotPanTilt = set;
+            // NOTE: the code below is recommended but doesn't work well
+            // if (fRotPanTilt) {
+            //  // lock cursor
+            //  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            // } else {
+            //  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            // }
+            break;
+        // if right click: don't handle. this is for menu selection
+        case GLFW_MOUSE_BUTTON_RIGHT:
+            //TODO: menu
+            break;
+        // if middle click: don't handle. doesn't work well on laptops
+        case GLFW_MOUSE_BUTTON_MIDDLE:
+            break;
+        default:
+            break;
     }
 }
