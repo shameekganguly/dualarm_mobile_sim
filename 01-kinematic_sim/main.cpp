@@ -19,6 +19,34 @@ void glfwError(int error, const char* description);
 // callback when a key is pressed
 void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 
+
+
+//Joint limits
+vector<double> panda_joint_limits_max = {
+    2.8973,
+    1.7628,
+    2.8973,
+    -0.0698,
+    2.8973,
+    3.7525,
+    2.8973
+    
+};
+
+vector<double> panda_joint_limits_min = {
+    -2.8973,
+    -1.7628,
+    -2.8973,
+    -3.0718,
+    -2.8973,
+    -0.0175,
+    -2.8973    
+};
+
+//function that saturates joints values when they reach limits
+double saturateJointValue(double jointInputVal, double jointLimitMax, double jointLimitMin);
+
+
 int main() {
 	cout << "Loading URDF world model file: " << world_file << endl;
 
@@ -71,15 +99,16 @@ int main() {
     while (!glfwWindowShouldClose(window))
 	{
         // update robot position
-        /*
-        unsigned int K = 1;
+        
+        unsigned int K = dof-2;
         for(unsigned int i = 0; i<K;i++)
-        {
-            robot1->_q[i] = (double) counter/100.0;
+        {   
+            double increment = (double) counter/100.0;
 
-            robot2->_q[i] = (double) counter/100.0;
+            robot1->_q[i] = saturateJointValue(increment,panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
+            robot2->_q[i] = saturateJointValue(increment,panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
         }
-        */
+        
         robot1->updateKinematics();
         robot2->updateKinematics();
         
@@ -133,5 +162,21 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     {
         // exit application
          glfwSetWindowShouldClose(window, 1);
+    }
+}
+
+double saturateJointValue(double jointInputVal, double jointLimitMax, double jointLimitMin)
+{
+    if(jointInputVal>jointLimitMax)
+    {
+        return jointLimitMax;
+    }   
+    else if(jointInputVal<jointLimitMin)
+    {
+        return jointLimitMin;
+    }
+    else
+    {
+        return jointInputVal;
     }
 }
