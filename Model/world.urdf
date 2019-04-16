@@ -5,11 +5,11 @@
 
 	<robot name="PANDA1">
 		<model dir="./resources" path="panda_arm_hand.urdf" name="panda_hand" />
-		<origin xyz="0.0 -0.5 0.5" rpy="1.0 0 1.0" />
+		<origin xyz="0.0 -0.5 1.0" rpy="2.0 0 1.0" />
 	</robot>
 	<robot name="PANDA2">
 		<model dir="./resources" path="panda_arm_hand.urdf" name="panda_hand" />
-		<origin xyz="0.0 0.0 0.5" rpy="-1.0 0 -1.0" />
+		<origin xyz="0.0 0.0 1.0" rpy="-2.0 0 -1.0" />
 	</robot>
 
 	<static_object name="Floor">

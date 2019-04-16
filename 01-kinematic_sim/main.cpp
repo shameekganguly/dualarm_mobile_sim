@@ -8,8 +8,12 @@
 
 #include <iostream>
 #include <string>
+#include <cmath>
 
 using namespace std;
+
+/*************MODULE CONSTANTS*************/
+
 
 const string world_file = "resources/world.urdf";
 const string robot_file = "resources/panda_arm_hand.urdf";
@@ -17,14 +21,6 @@ const string robot1_name = "PANDA1";
 const string robot2_name = "PANDA2";
 const string camera_name = "camera_fixed";
 
-// callback to print glfw errors
-void glfwError(int error, const char* description);
-
-// callback when a key is pressed
-void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
-
-// callback when a mouse button is pressed
-void mouseClick(GLFWwindow* window, int button, int action, int mods);
 
 // flags for scene camera movement
 bool fTransXp = false;
@@ -34,6 +30,7 @@ bool fTransYn = false;
 bool fTransZp = false;
 bool fTransZn = false;
 bool fRotPanTilt = false;
+
 
 
 //Joint limits
@@ -57,8 +54,26 @@ vector<double> panda_joint_limits_min = {
     -2.8973    
 };
 
-//function that saturates joints values when they reach limits
-double saturateJointValue(double jointInputVal, double jointLimitMax, double jointLimitMin);
+
+
+
+/*************FUNCTION PROTOTYPES*****************/
+
+// callback to print glfw errors
+void glfwError(int error, const char* description);
+
+// callback when a key is pressed
+void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
+
+// callback when a mouse button is pressed
+void mouseClick(GLFWwindow* window, int button, int action, int mods);
+
+//function that randomly samples from joint space
+double random_sample(double jointLimitMax, double jointLimitMin);
+
+
+/*************************************************/
+
 
 
 int main() {
@@ -114,7 +129,6 @@ int main() {
     double last_cursorx, last_cursory;
 
 
-    unsigned long long counter = 0;
 
     // while window is open:
     while (!glfwWindowShouldClose(window))
@@ -124,15 +138,14 @@ int main() {
         unsigned int K = dof-2;
         for(unsigned int i = 0; i<K;i++)
         {   
-            double increment = (double) counter/500.0;
-
-            robot1->_q[i] = saturateJointValue(increment,panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
-            robot2->_q[i] = saturateJointValue(increment,panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
+            robot1->_q[i] = random_sample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
+            robot2->_q[i] = random_sample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
         }
         
         robot1->updateKinematics();
         robot2->updateKinematics();
-        
+
+
 
 		// update graphics. this automatically waits for the correct amount of time
 		int width, height;
@@ -212,7 +225,6 @@ int main() {
         //end camera movement code
 
 
-        counter++;
 	}
 
     // destroy context
@@ -223,6 +235,24 @@ int main() {
 
 	return 0;
 }
+
+
+
+//------------------------------------------------------------------------------
+
+/*
+This function randomly samples a <double> value in between the given limits
+*/
+double random_sample(double jointLimitMax, double jointLimitMin)
+{	
+	 
+	double r = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(jointLimitMax-jointLimitMin)));
+	double jointInputVal = jointLimitMin + r;
+	return jointInputVal;	
+	
+}
+
+
 
 //------------------------------------------------------------------------------
 
@@ -264,21 +294,6 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
 }
 
-double saturateJointValue(double jointInputVal, double jointLimitMax, double jointLimitMin)
-{
-    if(jointInputVal>jointLimitMax)
-    {
-        return jointLimitMax;
-    }   
-    else if(jointInputVal<jointLimitMin)
-    {
-        return jointLimitMin;
-    }
-    else
-    {
-        return jointInputVal;
-    }
-}
 
 
 void mouseClick(GLFWwindow* window, int button, int action, int mods) {
