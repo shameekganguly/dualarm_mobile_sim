@@ -3,6 +3,7 @@
 #include "Sai2Primitives.h"
 #include "Sai2Simulation.h"
 #include "timer/LoopTimer.h"
+#include <unistd.h>
 
 #include <GLFW/glfw3.h> //must be loaded after loading opengl/glew
 
@@ -11,15 +12,18 @@
 #include <cmath>
 
 using namespace std;
+using namespace Eigen;
 
 /*************MODULE CONSTANTS*************/
 
+#define Pi 3.14159
 
 const string world_file = "resources/world.urdf";
 const string robot_file = "resources/panda_arm_hand.urdf";
 const string robot1_name = "PANDA1";
 const string robot2_name = "PANDA2";
 const string camera_name = "camera_fixed";
+const string ee_link_name = "link7";
 
 
 // flags for scene camera movement
@@ -72,6 +76,9 @@ void mouseClick(GLFWwindow* window, int button, int action, int mods);
 double random_sample(double jointLimitMax, double jointLimitMin);
 
 
+Eigen::Affine3d create_rotation_matrix(double ax, double ay, double az);
+
+
 /*************************************************/
 
 
@@ -85,14 +92,38 @@ int main() {
     graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
 
     // load robots
-    auto robot1 = new Sai2Model::Sai2Model(robot_file, false);
+
+     //--------Load the world frames------/
+
+       //define the transformation parameters for the robot frames
+    double x1 = 0.0; double y1 = -0.5; double z1 = 1.0;
+    double ax1 = 2.0; double ay1 = 0.0; double az1 = 1.0;
+
+    double x2 = 0.0; double y2 = 0.0; double z2 = 1.0;
+    double ax2 = -2.0; double ay2 = 0.0; double az2 = -1.0;
+
+    Eigen::Affine3d r1 = create_rotation_matrix(ax1, ay1, az1);
+  	Eigen::Affine3d t1(Eigen::Translation3d(Eigen::Vector3d(x1,y1,z1)));
+  	Eigen::Affine3d T_world_robot1 = (t1 * r1);
+  	Eigen::Matrix4d m1 = T_world_robot1.matrix();
+
+  	Eigen::Affine3d r2 = create_rotation_matrix(ax2, ay2, az2);
+  	Eigen::Affine3d t2(Eigen::Translation3d(Eigen::Vector3d(x2,y2,z2)));
+  	Eigen::Affine3d T_world_robot2 = (t2 * r2);
+  	Eigen::Matrix4d m2 = T_world_robot2.matrix();
+
+  	//load the robots
+
+    auto robot1 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot1);
     int dof = robot1->dof();
     robot1->_q.setZero();
     robot1->_dq.setZero();
 
-    auto robot2 = new Sai2Model::Sai2Model(robot_file, false);
+    auto robot2 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot2);
     robot2->_q.setZero();
-    robot2->_dq.setZero();
+    robot2->_dq.setZero(); 
+
+
 
 	/*------- Set up visualization -------*/
     // set up error callback
@@ -138,14 +169,27 @@ int main() {
         unsigned int K = dof-2;
         for(unsigned int i = 0; i<K;i++)
         {   
+
             robot1->_q[i] = random_sample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
             robot2->_q[i] = random_sample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
         }
         
         robot1->updateKinematics();
         robot2->updateKinematics();
+        
+		Eigen::Vector3d P1,P2;
+        robot1->positionInWorld(P1,ee_link_name);
+        robot2->positionInWorld(P2,ee_link_name);
 
+        
 
+        if ( (P1-P2).norm() > 0.3 ) //if bigger than one metre
+        {	
+        	printf("NOT FEASIBLE\n");
+        	continue; //do not consider this, restart the search
+        }
+		
+		cout << "FEASIBLE" << "\n \r" << P1.transpose() << "\n \r" << P2.transpose() << "\n \r" << (P1-P2).norm() << endl;
 
 		// update graphics. this automatically waits for the correct amount of time
 		int width, height;
@@ -224,6 +268,7 @@ int main() {
         glfwGetCursorPos(window, &last_cursorx, &last_cursory);
         //end camera movement code
 
+        usleep(300000);
 
 	}
 
@@ -235,24 +280,6 @@ int main() {
 
 	return 0;
 }
-
-
-
-//------------------------------------------------------------------------------
-
-/*
-This function randomly samples a <double> value in between the given limits
-*/
-double random_sample(double jointLimitMax, double jointLimitMin)
-{	
-	 
-	double r = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(jointLimitMax-jointLimitMin)));
-	double jointInputVal = jointLimitMin + r;
-	return jointInputVal;	
-	
-}
-
-
 
 //------------------------------------------------------------------------------
 
@@ -294,6 +321,14 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
 }
 
+double random_sample(double jointLimitMax, double jointLimitMin)
+{	
+	 
+	double r2 = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(jointLimitMax-jointLimitMin)));
+	double jointInputVal = jointLimitMin + r2;
+	return jointInputVal;	
+	
+}
 
 
 void mouseClick(GLFWwindow* window, int button, int action, int mods) {
@@ -322,3 +357,18 @@ void mouseClick(GLFWwindow* window, int button, int action, int mods) {
             break;
     }
 }
+
+
+/*
+returns the transformation matrix given fixed angle representation of rotation
+*/
+Eigen::Affine3d create_rotation_matrix(double ax, double ay, double az) {
+  Eigen::Affine3d rx =
+      Eigen::Affine3d(Eigen::AngleAxisd(ax, Eigen::Vector3d(1, 0, 0)));
+  Eigen::Affine3d ry =
+      Eigen::Affine3d(Eigen::AngleAxisd(ay, Eigen::Vector3d(0, 1, 0)));
+  Eigen::Affine3d rz =
+      Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
+  return rz * ry * rx;
+}
+
