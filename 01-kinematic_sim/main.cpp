@@ -30,6 +30,7 @@ using namespace Eigen;
 
 #define Pi 3.14159
 #define OBJECT_SIZE_LIMIT 0.3
+#define ONE_MILLIS 1000
 
 const string world_file = "resources/world.urdf";
 const string robot_file = "resources/panda_arm_hand.urdf";
@@ -84,14 +85,18 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 // callback when a mouse button is pressed
 void mouseClick(GLFWwindow* window, int button, int action, int mods);
 
+void moveCamera(Eigen::Vector3d& camera_pos,Eigen::Vector3d& camera_lookat, Eigen::Vector3d& camera_vertical,Eigen::Vector3d& cam_up_axis, GLFWwindow* window);
+
+
 //function that randomly samples from joint space
 double randomSample(double jointLimitMax, double jointLimitMin);
 
 //creates rotation matrix from fixed angle representation
 Eigen::Affine3d create_rotation_matrix(double ax, double ay, double az);
 
-//samples
-void robotJointSpaceSample(Sai2Model::Sai2Model* robot);
+//samples from joint space of robot and updates the _q values
+void robotJointSpaceSample(Sai2Model::Sai2Model* robot); 
+
 
 
 /*************************************************/
@@ -102,11 +107,12 @@ int main() {
 	cout << "Loading URDF world model file: " << world_file << endl;
 
 	// load graphics scene
-
 	auto graphics = new Sai2Graphics::Sai2Graphics(world_file, false);
     Eigen::Vector3d camera_pos, camera_lookat, camera_vertical;
     graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
-
+	Eigen::Vector3d cam_up_axis;
+	cam_up_axis << 0.0, 0.0, 1.0; //TODO: there might be a better way to do this
+		
     // load robots
 
      //--------Load the world frames------/
@@ -137,25 +143,21 @@ int main() {
     robot2->_q.setZero();
     robot2->_dq.setZero(); 
 
-	/*------- Set up visualization -------*/
-    // set up error callback
-    glfwSetErrorCallback(glfwError);
 
+
+
+    //-------------------GRAPHICS---------------------//
+
+	 // set up error callback
+    glfwSetErrorCallback(glfwError);
     // initialize GLFW
     glfwInit();
-
     // retrieve resolution of computer display and position window accordingly
     GLFWmonitor* primary = glfwGetPrimaryMonitor();
     const GLFWvidmode* mode = glfwGetVideoMode(primary);
-
     // information about computer screen and GLUT display window
-	int screenW = mode->width;
-    int screenH = mode->height;
-    int windowW = 0.8 * screenH;
-    int windowH = 0.5 * screenH;
-    int windowPosY = (screenH - windowH) / 2;
-    int windowPosX = windowPosY;
-
+	int screenW = mode->width;    int screenH = mode->height;    int windowW = 0.8 * screenH;
+    int windowH = 0.5 * screenH;    int windowPosY = (screenH - windowH) / 2;    int windowPosX = windowPosY;
     // create window and make it current
     glfwWindowHint(GLFW_VISIBLE, 0);
     GLFWwindow* window = glfwCreateWindow(windowW, windowH, "01-kinematic_sim", NULL, NULL);
@@ -163,15 +165,13 @@ int main() {
 	glfwShowWindow(window);
     glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);
-
     // set callbacks
 	glfwSetKeyCallback(window, keySelect);
     glfwSetMouseButtonCallback(window, mouseClick);
 
-    // cache variables
-    double last_cursorx, last_cursory;
 
 
+    //-----------------BEGIN SIMULATION LOOP----------------//
 
     // while window is open:
     while (!glfwWindowShouldClose(window))
@@ -179,6 +179,8 @@ int main() {
         // update joint position of robot by random sampling
         robotJointSpaceSample(robot1);
         robotJointSpaceSample(robot2);
+
+        //get
       	
       	//update kinematics in the model
         robot1->updateKinematics();
@@ -194,8 +196,12 @@ int main() {
         	continue; //do not consider this, restart the search
         }
         
-		
-		//cout << "FEASIBLE" << "\n \r" << P1.transpose() << "\n \r" << P2.transpose() << "\n \r" << (P1-P2).norm() << endl;
+
+
+
+
+
+        //----------GRAPHICS-----------//
 
 		// update graphics. this automatically waits for the correct amount of time
 		int width, height;
@@ -203,78 +209,25 @@ int main() {
         graphics->updateGraphics(robot1_name, robot1);
         graphics->updateGraphics(robot2_name, robot2);
 		graphics->render(camera_name, width, height);
-
 		// swap buffers
 		glfwSwapBuffers(window);
-
 		// wait until all GL commands are completed
 		glFinish();
-
 		// check for any OpenGL errors
 		GLenum err;
 		err = glGetError();
 		assert(err == GL_NO_ERROR);
-
 	    // poll for events
 	    glfwPollEvents();
-
-        // move scene camera as required
-        // graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
-        Eigen::Vector3d cam_depth_axis;
-        cam_depth_axis = camera_lookat - camera_pos;
-        cam_depth_axis.normalize();
-        Eigen::Vector3d cam_up_axis;
-        // cam_up_axis = camera_vertical;
-        // cam_up_axis.normalize();
-        cam_up_axis << 0.0, 0.0, 1.0; //TODO: there might be a better way to do this
-        Eigen::Vector3d cam_roll_axis = (camera_lookat - camera_pos).cross(cam_up_axis);
-        cam_roll_axis.normalize();
-        Eigen::Vector3d cam_lookat_axis = camera_lookat;
-        cam_lookat_axis.normalize();
-        if (fTransXp) {
-            camera_pos = camera_pos + 0.05*cam_roll_axis;
-            camera_lookat = camera_lookat + 0.05*cam_roll_axis;
-        }
-        if (fTransXn) {
-            camera_pos = camera_pos - 0.05*cam_roll_axis;
-            camera_lookat = camera_lookat - 0.05*cam_roll_axis;
-        }
-        if (fTransYp) {
-            // camera_pos = camera_pos + 0.05*cam_lookat_axis;
-            camera_pos = camera_pos + 0.05*cam_up_axis;
-            camera_lookat = camera_lookat + 0.05*cam_up_axis;
-        }
-        if (fTransYn) {
-            // camera_pos = camera_pos - 0.05*cam_lookat_axis;
-            camera_pos = camera_pos - 0.05*cam_up_axis;
-            camera_lookat = camera_lookat - 0.05*cam_up_axis;
-        }
-        if (fTransZp) {
-            camera_pos = camera_pos + 0.1*cam_depth_axis;
-            camera_lookat = camera_lookat + 0.1*cam_depth_axis;
-        }       
-        if (fTransZn) {
-            camera_pos = camera_pos - 0.1*cam_depth_axis;
-            camera_lookat = camera_lookat - 0.1*cam_depth_axis;
-        }
-        if (fRotPanTilt) {
-            // get current cursor position
-            double cursorx, cursory;
-            glfwGetCursorPos(window, &cursorx, &cursory);
-            //TODO: might need to re-scale from screen units to physical units
-            double compass = 0.006*(cursorx - last_cursorx);
-            double azimuth = 0.006*(cursory - last_cursory);
-            double radius = (camera_pos - camera_lookat).norm();
-            Eigen::Matrix3d m_tilt; m_tilt = Eigen::AngleAxisd(azimuth, -cam_roll_axis);
-            camera_pos = camera_lookat + m_tilt*(camera_pos - camera_lookat);
-            Eigen::Matrix3d m_pan; m_pan = Eigen::AngleAxisd(compass, -cam_up_axis);
-            camera_pos = camera_lookat + m_pan*(camera_pos - camera_lookat);
-        }
+	    //move camera according to cursor and keys
+	    moveCamera(camera_pos,camera_lookat, camera_vertical, cam_up_axis, window);
+	    //update camera in graphs
         graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
-        glfwGetCursorPos(window, &last_cursorx, &last_cursory);
-        //end camera movement code
+ 		
 
-        usleep(300000);
+
+ 		//sleep in seconds		
+        usleep(100*ONE_MILLIS);
 
 	}
 
@@ -287,7 +240,15 @@ int main() {
 	return 0;
 }
 
-//------------------------------------------------------------------------------
+
+
+
+
+
+//-----------------------------------------------------------------------------//
+
+
+//--------------------------FUNCTIONS----------------------------------------------------
 
 void glfwError(int error, const char* description) {
 	cerr << "GLFW Error: " << description << endl;
@@ -389,4 +350,71 @@ void robotJointSpaceSample(Sai2Model::Sai2Model* robot)
     }
 
 }
+
+
+void moveCamera(Eigen::Vector3d& camera_pos,Eigen::Vector3d& camera_lookat, Eigen::Vector3d& camera_vertical, Eigen::Vector3d& cam_up_axis, GLFWwindow* window)
+{	
+	    static double last_cursorx, last_cursory;
+
+        // move scene camera as required
+        // graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
+        Eigen::Vector3d cam_depth_axis;
+        cam_depth_axis = camera_lookat - camera_pos;
+        cam_depth_axis.normalize();
+        Eigen::Vector3d cam_roll_axis = (camera_lookat - camera_pos).cross(cam_up_axis);
+        cam_roll_axis.normalize();
+        Eigen::Vector3d cam_lookat_axis = camera_lookat;
+        cam_lookat_axis.normalize();
+        if (fTransXp) {
+            camera_pos = camera_pos + 0.05*cam_roll_axis;
+            camera_lookat = camera_lookat + 0.05*cam_roll_axis;
+        }
+        if (fTransXn) {
+            camera_pos = camera_pos - 0.05*cam_roll_axis;
+            camera_lookat = camera_lookat - 0.05*cam_roll_axis;
+        }
+        if (fTransYp) {
+            // camera_pos = camera_pos + 0.05*cam_lookat_axis;
+            camera_pos = camera_pos + 0.05*cam_up_axis;
+            camera_lookat = camera_lookat + 0.05*cam_up_axis;
+        }
+        if (fTransYn) {
+            // camera_pos = camera_pos - 0.05*cam_lookat_axis;
+            camera_pos = camera_pos - 0.05*cam_up_axis;
+            camera_lookat = camera_lookat - 0.05*cam_up_axis;
+        }
+        if (fTransZp) {
+            camera_pos = camera_pos + 0.1*cam_depth_axis;
+            camera_lookat = camera_lookat + 0.1*cam_depth_axis;
+        }       
+        if (fTransZn) {
+            camera_pos = camera_pos - 0.1*cam_depth_axis;
+            camera_lookat = camera_lookat - 0.1*cam_depth_axis;
+        }
+        if (fRotPanTilt) {
+            // get current cursor position
+            double cursorx, cursory;
+            glfwGetCursorPos(window, &cursorx, &cursory);
+            //TODO: might need to re-scale from screen units to physical units
+            double compass = 0.006*(cursorx - last_cursorx);
+            double azimuth = 0.006*(cursory - last_cursory);
+            double radius = (camera_pos - camera_lookat).norm();
+            Eigen::Matrix3d m_tilt; m_tilt = Eigen::AngleAxisd(azimuth, -cam_roll_axis);
+            camera_pos = camera_lookat + m_tilt*(camera_pos - camera_lookat);
+            Eigen::Matrix3d m_pan; m_pan = Eigen::AngleAxisd(compass, -cam_up_axis);
+            camera_pos = camera_lookat + m_pan*(camera_pos - camera_lookat);
+        }
+  		glfwGetCursorPos(window, &last_cursorx, &last_cursory);
+
+}
+
+
+
+
+
+
+
+
+
+
 
