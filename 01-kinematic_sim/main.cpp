@@ -1,3 +1,15 @@
+/*
+main.cpp
+
+Code for evaluating the kinematics of Bimanual Manipulation
+
+Author: Varun Nayak
+
+
+*/
+
+
+
 #include "Sai2Graphics.h"
 #include "Sai2Model.h"
 #include "Sai2Primitives.h"
@@ -17,6 +29,7 @@ using namespace Eigen;
 /*************MODULE CONSTANTS*************/
 
 #define Pi 3.14159
+#define OBJECT_SIZE_LIMIT 0.3
 
 const string world_file = "resources/world.urdf";
 const string robot_file = "resources/panda_arm_hand.urdf";
@@ -60,7 +73,6 @@ vector<double> panda_joint_limits_min = {
 
 
 
-
 /*************FUNCTION PROTOTYPES*****************/
 
 // callback to print glfw errors
@@ -73,10 +85,13 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
 void mouseClick(GLFWwindow* window, int button, int action, int mods);
 
 //function that randomly samples from joint space
-double random_sample(double jointLimitMax, double jointLimitMin);
+double randomSample(double jointLimitMax, double jointLimitMin);
 
-
+//creates rotation matrix from fixed angle representation
 Eigen::Affine3d create_rotation_matrix(double ax, double ay, double az);
+
+//samples
+void robotJointSpaceSample(Sai2Model::Sai2Model* robot);
 
 
 /*************************************************/
@@ -87,6 +102,7 @@ int main() {
 	cout << "Loading URDF world model file: " << world_file << endl;
 
 	// load graphics scene
+
 	auto graphics = new Sai2Graphics::Sai2Graphics(world_file, false);
     Eigen::Vector3d camera_pos, camera_lookat, camera_vertical;
     graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
@@ -95,7 +111,7 @@ int main() {
 
      //--------Load the world frames------/
 
-       //define the transformation parameters for the robot frames
+    //define the transformation parameters for the robot frames
     double x1 = 0.0; double y1 = -0.5; double z1 = 1.0;
     double ax1 = 2.0; double ay1 = 0.0; double az1 = 1.0;
 
@@ -113,17 +129,13 @@ int main() {
   	Eigen::Matrix4d m2 = T_world_robot2.matrix();
 
   	//load the robots
-
     auto robot1 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot1);
     int dof = robot1->dof();
     robot1->_q.setZero();
     robot1->_dq.setZero();
-
     auto robot2 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot2);
     robot2->_q.setZero();
     robot2->_dq.setZero(); 
-
-
 
 	/*------- Set up visualization -------*/
     // set up error callback
@@ -164,32 +176,26 @@ int main() {
     // while window is open:
     while (!glfwWindowShouldClose(window))
 	{
-        // update robot position
-        
-        unsigned int K = dof-2;
-        for(unsigned int i = 0; i<K;i++)
-        {   
-
-            robot1->_q[i] = random_sample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
-            robot2->_q[i] = random_sample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
-        }
-        
+        // update joint position of robot by random sampling
+        robotJointSpaceSample(robot1);
+        robotJointSpaceSample(robot2);
+      	
+      	//update kinematics in the model
         robot1->updateKinematics();
         robot2->updateKinematics();
         
+        //create global position vectors of the end effectors
 		Eigen::Vector3d P1,P2;
         robot1->positionInWorld(P1,ee_link_name);
         robot2->positionInWorld(P2,ee_link_name);
 
-        
-
-        if ( (P1-P2).norm() > 0.3 ) //if bigger than one metre
-        {	
-        	printf("NOT FEASIBLE\n");
+        if ( (P1-P2).norm() > OBJECT_SIZE_LIMIT) //if bigger than a certain distance (object size limit)
+        {
         	continue; //do not consider this, restart the search
         }
+        
 		
-		cout << "FEASIBLE" << "\n \r" << P1.transpose() << "\n \r" << P2.transpose() << "\n \r" << (P1-P2).norm() << endl;
+		//cout << "FEASIBLE" << "\n \r" << P1.transpose() << "\n \r" << P2.transpose() << "\n \r" << (P1-P2).norm() << endl;
 
 		// update graphics. this automatically waits for the correct amount of time
 		int width, height;
@@ -321,7 +327,7 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
 }
 
-double random_sample(double jointLimitMax, double jointLimitMin)
+double randomSample(double jointLimitMax, double jointLimitMin)
 {	
 	 
 	double r2 = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/(jointLimitMax-jointLimitMin)));
@@ -370,5 +376,17 @@ Eigen::Affine3d create_rotation_matrix(double ax, double ay, double az) {
   Eigen::Affine3d rz =
       Eigen::Affine3d(Eigen::AngleAxisd(az, Eigen::Vector3d(0, 0, 1)));
   return rz * ry * rx;
+}
+
+void robotJointSpaceSample(Sai2Model::Sai2Model* robot)
+{
+
+	 unsigned int K = robot->dof()-2;
+    for(unsigned int i = 0; i<K;i++)
+    {   
+
+        robot->_q[i] = randomSample(panda_joint_limits_max[i] ,panda_joint_limits_min[i]);
+    }
+
 }
 
