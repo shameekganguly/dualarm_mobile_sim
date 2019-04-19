@@ -29,8 +29,10 @@ using namespace Eigen;
 /*************MODULE CONSTANTS*************/
 
 #define Pi 3.14159
-#define OBJECT_SIZE_LIMIT 0.3
+#define OBJECT_SIZE_LIMIT 1.0
 #define ONE_MILLIS 1000
+#define SLEEP_TIME 100*ONE_MILLIS
+
 
 const string world_file = "resources/world.urdf";
 const string robot_file = "resources/panda_arm_hand.urdf";
@@ -73,6 +75,7 @@ vector<double> panda_joint_limits_min = {
 };
 
 
+const string object_name = "BOX";
 
 /*************FUNCTION PROTOTYPES*****************/
 
@@ -157,7 +160,7 @@ int main() {
     const GLFWvidmode* mode = glfwGetVideoMode(primary);
     // information about computer screen and GLUT display window
 	int screenW = mode->width;    int screenH = mode->height;    int windowW = 0.8 * screenH;
-    int windowH = 0.5 * screenH;    int windowPosY = (screenH - windowH) / 2;    int windowPosX = windowPosY;
+    int windowH = 0.5 * screenH;    int windowPosY = -(screenH - windowH) ;    int windowPosX = -2*windowPosY;
     // create window and make it current
     glfwWindowHint(GLFW_VISIBLE, 0);
     GLFWwindow* window = glfwCreateWindow(windowW, windowH, "01-kinematic_sim", NULL, NULL);
@@ -197,9 +200,9 @@ int main() {
         }
         
 
-
-
-
+        //compute the position of the box with respect to the end effectors
+        Eigen::Vector3d object_position = (P1+P2)/2;
+        Eigen::Quaterniond object_orientation = Quaterniond::Identity();
 
         //----------GRAPHICS-----------//
 
@@ -208,6 +211,7 @@ int main() {
 		glfwGetFramebufferSize(window, &width, &height);
         graphics->updateGraphics(robot1_name, robot1);
         graphics->updateGraphics(robot2_name, robot2);
+        graphics->updateObjectGraphics(object_name, object_position, object_orientation);
 		graphics->render(camera_name, width, height);
 		// swap buffers
 		glfwSwapBuffers(window);
@@ -227,7 +231,7 @@ int main() {
 
 
  		//sleep in seconds		
-        usleep(100*ONE_MILLIS);
+        usleep(SLEEP_TIME);
 
 	}
 
