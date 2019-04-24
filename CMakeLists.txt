@@ -55,6 +55,9 @@ add_definitions(${SAI2-COMMON_DEFINITIONS})
 find_package(glfw3 QUIET)
 find_library(GLFW_LIBRARY glfw)
 
+# - hiredis
+find_library(HIREDIS_LIBRARY hiredis)
+
 # - rbdl
 find_package(RBDL QUIET)
 include_directories(${RBDL_INCLUDE_DIR})
@@ -67,6 +70,7 @@ set(COMMON_LIBRARIES
     ${SAI2-GRAPHICS_LIBRARIES}
     ${SAI2-PRIMITIVES_LIBRARIES}
     ${SAI2-COMMON_LIBRARIES}
+    ${HIREDIS_LIBRARY}
 	${GLFW_LIBRARY}
 	)
 
@@ -79,3 +83,4 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${PROJECT_SOURCE_DIR}/bin)
 set (BINARY_DIR ${PROJECT_SOURCE_DIR}/bin)
 
 ADD_SUBDIRECTORY(01-kinematic_sim)
+ADD_SUBDIRECTORY(01-dynamic_sim)

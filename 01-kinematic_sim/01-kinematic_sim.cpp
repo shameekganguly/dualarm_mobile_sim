@@ -8,8 +8,6 @@ Author: Varun Nayak
 
 */
 
-
-
 #include "Sai2Graphics.h"
 #include "Sai2Model.h"
 #include "Sai2Primitives.h"
@@ -28,10 +26,18 @@ using namespace Eigen;
 
 /*************MODULE CONSTANTS*************/
 
+#define ENABLE_GRAPHICS_UPDATE
+
+
 #define Pi 3.14159
-#define OBJECT_SIZE_LIMIT 1.0
+#define DEG2RAD (3.14159/180)
+
+#define OBJECT_SIZE 0.3	//size to be manipulated (with some tolerance)
+#define OBJECT_SIZE_TOL 0.05	//object size tolerance
 #define ONE_MILLIS 1000
-#define SLEEP_TIME 100*ONE_MILLIS
+#define SLEEP_TIME 0*ONE_MILLIS
+#define SAMPLES_TO_AV 10000	//number of samples to compute mean position of workspace
+#define SAMPLES_TO_LIM 2*SAMPLES_TO_AV	//number of samples to find the maximum distances of workspace
 
 
 const string world_file = "resources/world.urdf";
@@ -39,7 +45,7 @@ const string robot_file = "resources/panda_arm_hand.urdf";
 const string robot1_name = "PANDA1";
 const string robot2_name = "PANDA2";
 const string camera_name = "camera_fixed";
-const string ee_link_name = "link7";
+const string ee_link_name = "leftfinger";
 
 
 // flags for scene camera movement
@@ -55,24 +61,25 @@ bool fRotPanTilt = false;
 
 //Joint limits
 vector<double> panda_joint_limits_max = {
-    2.8973,
-    1.7628,
-    2.8973,
-    -0.0698,
-    2.8973,
-    3.7525,
-    2.8973
+    2.8973,    1.7628,    2.8973,    -0.0698,    2.8973,    3.7525,    2.8973
     
 };
 vector<double> panda_joint_limits_min = {
-    -2.8973,
-    -1.7628,
-    -2.8973,
-    -3.0718,
-    -2.8973,
-    -0.0175,
-    -2.8973    
+    -2.8973,    -1.7628,    -2.8973,    -3.0718,    -2.8973,    -0.0175,    -2.8973    
 };
+
+//steps of x to optimize over (in radians)
+vector<double> x_steps = {
+    60, 70, 80, 90, 100, 110, 120
+}*DEG2RAD
+
+vector<double> y_steps = {
+    0, 10, 20, 30, 40, 50, 60
+}*DEG2RAD
+
+vector<double> z_steps = {
+    30, 40, 50, 60, 70, 80, 90
+}*DEG2RAD
 
 
 const string object_name = "BOX";
@@ -100,6 +107,7 @@ Eigen::Affine3d create_rotation_matrix(double ax, double ay, double az);
 //samples from joint space of robot and updates the _q values
 void robotJointSpaceSample(Sai2Model::Sai2Model* robot); 
 
+void robotJointSpaceCounterUpdate(Sai2Model::Sai2Model* robot);
 
 
 /*************************************************/
@@ -107,7 +115,7 @@ void robotJointSpaceSample(Sai2Model::Sai2Model* robot);
 
 
 int main() {
-	cout << "Loading URDF world model file: " << world_file << endl;
+	//cout << "Loading URDF world model file: " << world_file << endl;	//verbose
 
 	// load graphics scene
 	auto graphics = new Sai2Graphics::Sai2Graphics(world_file, false);
@@ -121,17 +129,22 @@ int main() {
      //--------Load the world frames------/
 
     //define the transformation parameters for the robot frames
-    double x1 = 0.0; double y1 = -0.5; double z1 = 1.0;
-    double ax1 = 2.0; double ay1 = 0.0; double az1 = 1.0;
 
-    double x2 = 0.0; double y2 = 0.0; double z2 = 1.0;
-    double ax2 = -2.0; double ay2 = 0.0; double az2 = -1.0;
+    //------PARAMETERS--------//
+    double dist_between_arms = 0.5; //distance between the arms in mts
+    double roll_angle = 120*DEG2RAD; //x-axis out of the plane
+    double pitch_angle = 0*DEG2RAD;    // y-axis towards the right 
+    double yaw_angle = 60*DEG2RAD; //z-axis upwards
 
+    //parameters to rotation matrix
+    double x1 = 0.0; double y1 = -dist_between_arms/2; double z1 = 1.0;
+    double ax1 = roll_angle; double ay1 = pitch_angle; double az1 = yaw_angle;
+    double x2 = 0.0; double y2 = dist_between_arms/2; double z2 = 1.0;
+    double ax2 = -roll_angle; double ay2 = pitch_angle; double az2 = -yaw_angle;
     Eigen::Affine3d r1 = create_rotation_matrix(ax1, ay1, az1);
   	Eigen::Affine3d t1(Eigen::Translation3d(Eigen::Vector3d(x1,y1,z1)));
   	Eigen::Affine3d T_world_robot1 = (t1 * r1);
   	Eigen::Matrix4d m1 = T_world_robot1.matrix();
-
   	Eigen::Affine3d r2 = create_rotation_matrix(ax2, ay2, az2);
   	Eigen::Affine3d t2(Eigen::Translation3d(Eigen::Vector3d(x2,y2,z2)));
   	Eigen::Affine3d T_world_robot2 = (t2 * r2);
@@ -172,7 +185,10 @@ int main() {
 	glfwSetKeyCallback(window, keySelect);
     glfwSetMouseButtonCallback(window, mouseClick);
 
-
+    unsigned long no_of_samples = 0;
+    double x_min = 0; double x_max = 0; double x_mean= 0;
+    double y_min = 0; double y_max = 0; double y_mean= 0;
+    double z_min = 0; double z_max = 0; double z_mean= 0;
 
     //-----------------BEGIN SIMULATION LOOP----------------//
 
@@ -182,8 +198,6 @@ int main() {
         // update joint position of robot by random sampling
         robotJointSpaceSample(robot1);
         robotJointSpaceSample(robot2);
-
-        //get
       	
       	//update kinematics in the model
         robot1->updateKinematics();
@@ -194,9 +208,9 @@ int main() {
         robot1->positionInWorld(P1,ee_link_name);
         robot2->positionInWorld(P2,ee_link_name);
 
-        if ( (P1-P2).norm() > OBJECT_SIZE_LIMIT) //if bigger than a certain distance (object size limit)
+        if (!( ((P1-P2).norm() < OBJECT_SIZE + OBJECT_SIZE_TOL) && ((P1-P2).norm() > OBJECT_SIZE - OBJECT_SIZE_TOL ) )) //if bigger than a certain distance (object size limit)
         {
-        	continue; //do not consider this, restart the search
+        	continue; //do not consider this object size, resample
         }
         
 
@@ -204,31 +218,86 @@ int main() {
         Eigen::Vector3d object_position = (P1+P2)/2;
         Eigen::Quaterniond object_orientation = Quaterniond::Identity();
 
+        no_of_samples++; //	successful sample
+
+        //cout << "Object position " << object_position.transpose() << endl;
+
+        if(no_of_samples<=SAMPLES_TO_AV)
+        {
+        	//calculate the mean
+        	x_mean += - x_mean/no_of_samples + object_position[0]/no_of_samples;
+        	y_mean += - y_mean/no_of_samples + object_position[1]/no_of_samples;
+        	z_mean += - z_mean/no_of_samples + object_position[2]/no_of_samples;
+        }
+        else if(no_of_samples<=SAMPLES_TO_LIM)	//update  extreme points (limits of box)
+        {	
+        	//cout<< "MEAN = " << x_mean << "\t" << y_mean << "\t" << z_mean << endl;
+        	//break;
+
+        	if(object_position[0]-x_mean < x_min - x_mean)
+        	{
+        		x_min = object_position[0];
+        	}
+        	if(object_position[1]-y_mean < y_min - y_mean)
+        	{
+        		y_min = object_position[1];
+        	}
+        	if(object_position[2]-z_mean < z_min - z_mean)
+        	{
+        		z_min = object_position[2];
+        	}
+
+
+        	if(object_position[0]-x_mean > x_max - x_mean)
+        	{
+        		x_max = object_position[0];
+        	}
+        	if(object_position[1]-y_mean > y_max - y_mean)
+        	{
+        		y_max = object_position[1];
+        	}
+        	if(object_position[2]-z_mean > z_max - z_mean)
+        	{
+        		z_max = object_position[2];
+        	}
+
+        }
+        else
+        {
+        	double dim_x_box = abs(x_max-x_min);
+        	double dim_y_box = abs(y_max-y_min);
+ 	       	double dim_z_box = abs(z_max-z_min);
+ 	       	double workspace_box_volume = dim_z_box*dim_y_box*dim_x_box;
+ 	       	cout << "DONE SAMPLING, Box Volume = " << workspace_box_volume << endl;
+        }
+
+
+
         //----------GRAPHICS-----------//
-
-		// update graphics. this automatically waits for the correct amount of time
-		int width, height;
-		glfwGetFramebufferSize(window, &width, &height);
-        graphics->updateGraphics(robot1_name, robot1);
-        graphics->updateGraphics(robot2_name, robot2);
-        graphics->updateObjectGraphics(object_name, object_position, object_orientation);
-		graphics->render(camera_name, width, height);
-		// swap buffers
-		glfwSwapBuffers(window);
-		// wait until all GL commands are completed
-		glFinish();
-		// check for any OpenGL errors
-		GLenum err;
-		err = glGetError();
-		assert(err == GL_NO_ERROR);
-	    // poll for events
-	    glfwPollEvents();
-	    //move camera according to cursor and keys
-	    moveCamera(camera_pos,camera_lookat, camera_vertical, cam_up_axis, window);
-	    //update camera in graphs
-        graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
+        #ifdef ENABLE_GRAPHICS_UPDATE
+			// update graphics. this automatically waits for the correct amount of time
+			int width, height;
+			glfwGetFramebufferSize(window, &width, &height);
+	        graphics->updateGraphics(robot1_name, robot1);
+	        graphics->updateGraphics(robot2_name, robot2);
+	        graphics->updateObjectGraphics(object_name, object_position, object_orientation);
+			graphics->render(camera_name, width, height);
+			// swap buffers
+			glfwSwapBuffers(window);
+			// wait until all GL commands are completed
+			glFinish();
+			// check for any OpenGL errors
+			GLenum err;
+			err = glGetError();
+			assert(err == GL_NO_ERROR);
+		    // poll for events
+		    glfwPollEvents();
+		    //move camera according to cursor and keys
+		    moveCamera(camera_pos,camera_lookat, camera_vertical, cam_up_axis, window);
+		    //update camera in graphs
+	        graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
  		
-
+		#endif
 
  		//sleep in seconds		
         usleep(SLEEP_TIME);
@@ -354,6 +423,22 @@ void robotJointSpaceSample(Sai2Model::Sai2Model* robot)
     }
 
 }
+
+
+void robotJointSpaceCounterUpdate(Sai2Model::Sai2Model* robot)
+{
+
+	static unsigned int long counter = 0;
+	unsigned int K = robot->dof()-2;
+    for(unsigned int i = 0; i<K;i++)
+    {  
+        robot->_q[i] = (double)counter/100;
+    }
+    counter++;
+
+}
+
+
 
 
 void moveCamera(Eigen::Vector3d& camera_pos,Eigen::Vector3d& camera_lookat, Eigen::Vector3d& camera_vertical, Eigen::Vector3d& cam_up_axis, GLFWwindow* window)

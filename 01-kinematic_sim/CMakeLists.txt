@@ -1,5 +1,5 @@
 # create an executable
-ADD_EXECUTABLE (01-kinematic_sim main.cpp)
+ADD_EXECUTABLE (01-kinematic_sim 01-kinematic_sim.cpp)
 ADD_EXECUTABLE (test test.cpp)
 
 # and link the library against the executable
