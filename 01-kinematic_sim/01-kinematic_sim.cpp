@@ -20,6 +20,7 @@ Author: Varun Nayak
 #include <iostream>
 #include <string>
 #include <cmath>
+#include <fstream>
 
 using namespace std;
 using namespace Eigen;
@@ -30,13 +31,13 @@ using namespace Eigen;
 
 
 #define Pi 3.14159
-#define DEG2RAD (3.14159/180)
+#define DEG2RAD 0.01745329
 
 #define OBJECT_SIZE 0.3	//size to be manipulated (with some tolerance)
 #define OBJECT_SIZE_TOL 0.05	//object size tolerance
 #define ONE_MILLIS 1000
 #define SLEEP_TIME 0*ONE_MILLIS
-#define SAMPLES_TO_AV 10000	//number of samples to compute mean position of workspace
+#define SAMPLES_TO_AV 30000	//number of samples to compute mean position of workspace 30000 is the best
 #define SAMPLES_TO_LIM 2*SAMPLES_TO_AV	//number of samples to find the maximum distances of workspace
 
 
@@ -68,18 +69,25 @@ vector<double> panda_joint_limits_min = {
     -2.8973,    -1.7628,    -2.8973,    -3.0718,    -2.8973,    -0.0175,    -2.8973    
 };
 
-//steps of x to optimize over (in radians)
+//steps of x to optimize over (in degrees) 60-120, default 90
 vector<double> x_steps = {
-    60, 70, 80, 90, 100, 110, 120
-}*DEG2RAD
+    60
+};
 
+//y is from 0-60, default 30
 vector<double> y_steps = {
-    0, 10, 20, 30, 40, 50, 60
-}*DEG2RAD
+    30
+};
 
+//z is from 50-110, default 60
 vector<double> z_steps = {
-    30, 40, 50, 60, 70, 80, 90
-}*DEG2RAD
+  110
+};
+
+//step of distance between the arms in metres 0.35-0.75, default 0.55
+vector<double> d_steps = {
+0.40
+    };
 
 
 const string object_name = "BOX";
@@ -123,44 +131,11 @@ int main() {
     graphics->getCameraPose(camera_name, camera_pos, camera_vertical, camera_lookat);
 	Eigen::Vector3d cam_up_axis;
 	cam_up_axis << 0.0, 0.0, 1.0; //TODO: there might be a better way to do this
-		
-    // load robots
 
-     //--------Load the world frames------/
-
-    //define the transformation parameters for the robot frames
-
-    //------PARAMETERS--------//
-    double dist_between_arms = 0.5; //distance between the arms in mts
-    double roll_angle = 120*DEG2RAD; //x-axis out of the plane
-    double pitch_angle = 0*DEG2RAD;    // y-axis towards the right 
-    double yaw_angle = 60*DEG2RAD; //z-axis upwards
-
-    //parameters to rotation matrix
-    double x1 = 0.0; double y1 = -dist_between_arms/2; double z1 = 1.0;
-    double ax1 = roll_angle; double ay1 = pitch_angle; double az1 = yaw_angle;
-    double x2 = 0.0; double y2 = dist_between_arms/2; double z2 = 1.0;
-    double ax2 = -roll_angle; double ay2 = pitch_angle; double az2 = -yaw_angle;
-    Eigen::Affine3d r1 = create_rotation_matrix(ax1, ay1, az1);
-  	Eigen::Affine3d t1(Eigen::Translation3d(Eigen::Vector3d(x1,y1,z1)));
-  	Eigen::Affine3d T_world_robot1 = (t1 * r1);
-  	Eigen::Matrix4d m1 = T_world_robot1.matrix();
-  	Eigen::Affine3d r2 = create_rotation_matrix(ax2, ay2, az2);
-  	Eigen::Affine3d t2(Eigen::Translation3d(Eigen::Vector3d(x2,y2,z2)));
-  	Eigen::Affine3d T_world_robot2 = (t2 * r2);
-  	Eigen::Matrix4d m2 = T_world_robot2.matrix();
-
-  	//load the robots
-    auto robot1 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot1);
-    int dof = robot1->dof();
-    robot1->_q.setZero();
-    robot1->_dq.setZero();
-    auto robot2 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot2);
-    robot2->_q.setZero();
-    robot2->_dq.setZero(); 
-
-
-
+    //open file to store csv
+    std::ofstream data_file;
+    data_file.open("/home/varun/sai2/apps/dualarm_mobile_sim/01-kinematic_sim/bimanual_data_v1.csv");
+    bool simulation_in_process = true;
 
     //-------------------GRAPHICS---------------------//
 
@@ -185,125 +160,218 @@ int main() {
 	glfwSetKeyCallback(window, keySelect);
     glfwSetMouseButtonCallback(window, mouseClick);
 
-    unsigned long no_of_samples = 0;
-    double x_min = 0; double x_max = 0; double x_mean= 0;
-    double y_min = 0; double y_max = 0; double y_mean= 0;
-    double z_min = 0; double z_max = 0; double z_mean= 0;
+
+
+
+    // load robots
+
+     //--------Load the world frames------/
+
+    
 
     //-----------------BEGIN SIMULATION LOOP----------------//
 
+    int number_of_iterations_complete = 0;
+
     // while window is open:
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(window) && simulation_in_process )
 	{
-        // update joint position of robot by random sampling
-        robotJointSpaceSample(robot1);
-        robotJointSpaceSample(robot2);
-      	
-      	//update kinematics in the model
-        robot1->updateKinematics();
-        robot2->updateKinematics();
+       
+      
+       for(int i1 = 0; i1 < x_steps.size();i1++)
+       {
+       for(int i2 = 0; i2 < y_steps.size();i2++)
+       {
+       for(int i3 = 0; i3 < z_steps.size();i3++)
+       {
+       for(int i4 = 0; i4 < d_steps.size();i4++)
+       {
+
+        number_of_iterations_complete++;
+
+        bool iteration_done =  false;
+
+         //define the transformation parameters for the robot frames    
+        //------PARAMETERS--------//
+        double dist_between_arms = d_steps[i4]; //distance between the arms in mts
+        double roll_angle = x_steps[i1]*DEG2RAD; //x-axis out of the plane
+        double pitch_angle = y_steps[i2]*DEG2RAD;    // y-axis towards the right 
+        double yaw_angle = z_steps[i3]*DEG2RAD; //z-axis upwards
+
+        //parameters to rotation matrix
+        double x1 = 0.0; double y1 = -dist_between_arms/2; double z1 = 1.0;
+        double ax1 = roll_angle; double ay1 = pitch_angle; double az1 = yaw_angle;
+        double x2 = 0.0; double y2 = dist_between_arms/2; double z2 = 1.0;
+        double ax2 = -roll_angle; double ay2 = pitch_angle; double az2 = -yaw_angle;
+        Eigen::Affine3d r1 = create_rotation_matrix(ax1, ay1, az1);
+        Eigen::Affine3d t1(Eigen::Translation3d(Eigen::Vector3d(x1,y1,z1)));
+        Eigen::Affine3d T_world_robot1 = (t1 * r1);
+        Eigen::Matrix4d m1 = T_world_robot1.matrix();
+        Eigen::Affine3d r2 = create_rotation_matrix(ax2, ay2, az2);
+        Eigen::Affine3d t2(Eigen::Translation3d(Eigen::Vector3d(x2,y2,z2)));
+        Eigen::Affine3d T_world_robot2 = (t2 * r2);
+        Eigen::Matrix4d m2 = T_world_robot2.matrix();
+
+        //load the robots
+        auto robot1 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot1);
+        int dof = robot1->dof();
+        robot1->_q.setZero();
+        robot1->_dq.setZero();
+        auto robot2 = new Sai2Model::Sai2Model(robot_file, false, T_world_robot2);
+        robot2->_q.setZero();
+        robot2->_dq.setZero(); 
+
+
+
+         double total_size = x_steps.size()*d_steps.size()*y_steps.size()*z_steps.size();
+
+        cout << "-----------PERCENTAGE COMPLETE: " << ((double)100*(number_of_iterations_complete -1))/total_size << "%" <<  " ------------  "<< endl;
+
+
+
+        unsigned long no_of_samples = 0;
+        double x_min = 0; double x_max = 0; double x_mean= 0;
+        double y_min = 0; double y_max = 0; double y_mean= 0;
+        double z_min = 0; double z_max = 0; double z_mean= 0;
         
-        //create global position vectors of the end effectors
-		Eigen::Vector3d P1,P2;
-        robot1->positionInWorld(P1,ee_link_name);
-        robot2->positionInWorld(P2,ee_link_name);
-
-        if (!( ((P1-P2).norm() < OBJECT_SIZE + OBJECT_SIZE_TOL) && ((P1-P2).norm() > OBJECT_SIZE - OBJECT_SIZE_TOL ) )) //if bigger than a certain distance (object size limit)
+        while(!iteration_done)
         {
-        	continue; //do not consider this object size, resample
-        }
-        
 
-        //compute the position of the box with respect to the end effectors
-        Eigen::Vector3d object_position = (P1+P2)/2;
-        Eigen::Quaterniond object_orientation = Quaterniond::Identity();
-
-        no_of_samples++; //	successful sample
-
-        //cout << "Object position " << object_position.transpose() << endl;
-
-        if(no_of_samples<=SAMPLES_TO_AV)
-        {
-        	//calculate the mean
-        	x_mean += - x_mean/no_of_samples + object_position[0]/no_of_samples;
-        	y_mean += - y_mean/no_of_samples + object_position[1]/no_of_samples;
-        	z_mean += - z_mean/no_of_samples + object_position[2]/no_of_samples;
-        }
-        else if(no_of_samples<=SAMPLES_TO_LIM)	//update  extreme points (limits of box)
-        {	
-        	//cout<< "MEAN = " << x_mean << "\t" << y_mean << "\t" << z_mean << endl;
-        	//break;
-
-        	if(object_position[0]-x_mean < x_min - x_mean)
-        	{
-        		x_min = object_position[0];
-        	}
-        	if(object_position[1]-y_mean < y_min - y_mean)
-        	{
-        		y_min = object_position[1];
-        	}
-        	if(object_position[2]-z_mean < z_min - z_mean)
-        	{
-        		z_min = object_position[2];
-        	}
+               
 
 
-        	if(object_position[0]-x_mean > x_max - x_mean)
-        	{
-        		x_max = object_position[0];
-        	}
-        	if(object_position[1]-y_mean > y_max - y_mean)
-        	{
-        		y_max = object_position[1];
-        	}
-        	if(object_position[2]-z_mean > z_max - z_mean)
-        	{
-        		z_max = object_position[2];
-        	}
+                // update joint position of robot by random sampling
+                robotJointSpaceSample(robot1);
+                robotJointSpaceSample(robot2);
+              	
 
-        }
-        else
-        {
-        	double dim_x_box = abs(x_max-x_min);
-        	double dim_y_box = abs(y_max-y_min);
- 	       	double dim_z_box = abs(z_max-z_min);
- 	       	double workspace_box_volume = dim_z_box*dim_y_box*dim_x_box;
- 	       	cout << "DONE SAMPLING, Box Volume = " << workspace_box_volume << endl;
-        }
+                //FOR VISUALIZING ONLY
+                //robot1->_q.setZero();
+                //robot2->_q.setZero();
+                //FOR VISUALIZING ONLY
+
+              	//update kinematics in the model
+                robot1->updateKinematics();
+                robot2->updateKinematics();
+                
+                //create global position vectors of the end effectors
+        		Eigen::Vector3d P1,P2;
+                robot1->positionInWorld(P1,ee_link_name);
+                robot2->positionInWorld(P2,ee_link_name);
+
+                if (!( ((P1-P2).norm() < OBJECT_SIZE + OBJECT_SIZE_TOL) && ((P1-P2).norm() > OBJECT_SIZE - OBJECT_SIZE_TOL ) )) //if bigger than a certain distance (object size limit)
+                {
+                	continue; //do not consider this object size, resample
+                }
+                
+
+                //compute the position of the box with respect to the end effectors
+                Eigen::Vector3d object_position = (P1+P2)/2;
+                Eigen::Quaterniond object_orientation = Quaterniond::Identity();
+
+                no_of_samples++; //	successful sample
+
+                //cout << "Object position " << object_position.transpose() << endl;
+
+                if(no_of_samples<=SAMPLES_TO_AV)
+                {
+                	//calculate the mean
+                	x_mean += - x_mean/no_of_samples + object_position[0]/no_of_samples;
+                	y_mean += - y_mean/no_of_samples + object_position[1]/no_of_samples;
+                	z_mean += - z_mean/no_of_samples + object_position[2]/no_of_samples;
+                }
+                else if(no_of_samples<=SAMPLES_TO_LIM)	//update  extreme points (limits of box)
+                {	
+                	//cout<< "MEAN = " << x_mean << "\t" << y_mean << "\t" << z_mean << endl;
+                	//break;
+
+                	if(object_position[0]-x_mean < x_min - x_mean)
+                	{
+                		x_min = object_position[0];
+                	}
+                	if(object_position[1]-y_mean < y_min - y_mean)
+                	{
+                		y_min = object_position[1];
+                	}
+                	if(object_position[2]-z_mean < z_min - z_mean)
+                	{
+                		z_min = object_position[2];
+                	}
+
+
+                	if(object_position[0]-x_mean > x_max - x_mean)
+                	{
+                		x_max = object_position[0];
+                	}
+                	if(object_position[1]-y_mean > y_max - y_mean)
+                	{
+                		y_max = object_position[1];
+                	}
+                	if(object_position[2]-z_mean > z_max - z_mean)
+                	{
+                		z_max = object_position[2];
+                	}
+
+                }
+                else
+                {
+                	double dim_x_box = abs(x_max-x_min);
+                	double dim_y_box = abs(y_max-y_min);
+         	       	double dim_z_box = abs(z_max-z_min);
+         	       	double workspace_box_volume = dim_z_box*dim_y_box*dim_x_box;
+
+                    data_file << roll_angle << "," << pitch_angle << "," << yaw_angle << "," << dist_between_arms << ","
+                                << workspace_box_volume << endl;
+
+                    iteration_done = true;
+
+                   
+
+                }
 
 
 
-        //----------GRAPHICS-----------//
-        #ifdef ENABLE_GRAPHICS_UPDATE
-			// update graphics. this automatically waits for the correct amount of time
-			int width, height;
-			glfwGetFramebufferSize(window, &width, &height);
-	        graphics->updateGraphics(robot1_name, robot1);
-	        graphics->updateGraphics(robot2_name, robot2);
-	        graphics->updateObjectGraphics(object_name, object_position, object_orientation);
-			graphics->render(camera_name, width, height);
-			// swap buffers
-			glfwSwapBuffers(window);
-			// wait until all GL commands are completed
-			glFinish();
-			// check for any OpenGL errors
-			GLenum err;
-			err = glGetError();
-			assert(err == GL_NO_ERROR);
-		    // poll for events
-		    glfwPollEvents();
-		    //move camera according to cursor and keys
-		    moveCamera(camera_pos,camera_lookat, camera_vertical, cam_up_axis, window);
-		    //update camera in graphs
-	        graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
- 		
-		#endif
 
- 		//sleep in seconds		
-        usleep(SLEEP_TIME);
+                //----------GRAPHICS-----------//
+                #ifdef ENABLE_GRAPHICS_UPDATE
+        			// update graphics. this automatically waits for the correct amount of time
+        			int width, height;
+        			glfwGetFramebufferSize(window, &width, &height);
+        	        graphics->updateGraphics(robot1_name, robot1);
+        	        graphics->updateGraphics(robot2_name, robot2);
+        	        graphics->updateObjectGraphics(object_name, object_position, object_orientation);
+        			graphics->render(camera_name, width, height);
+        			// swap buffers
+        			glfwSwapBuffers(window);
+        			// wait until all GL commands are completed
+        			glFinish();
+        			// check for any OpenGL errors
+        			GLenum err;
+        			err = glGetError();
+        			assert(err == GL_NO_ERROR);
+        		    // poll for events
+        		    glfwPollEvents();
+        		    //move camera according to cursor and keys
+        		    moveCamera(camera_pos,camera_lookat, camera_vertical, cam_up_axis, window);
+        		    //update camera in graphs
+        	        graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
+         		
+        		#endif
 
+         		//sleep in seconds		
+                usleep(SLEEP_TIME);
+        } // iteration loop
+
+
+       }
+       }   
+       }
+       }//closing the for loop search
+
+        simulation_in_process = false;
 	}
 
+    data_file.close();
     // destroy context
     glfwDestroyWindow(window);
 
