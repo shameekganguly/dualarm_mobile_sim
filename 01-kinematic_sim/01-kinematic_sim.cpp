@@ -36,7 +36,7 @@ using namespace Eigen;
 #define OBJECT_SIZE 0.3	//size to be manipulated (with some tolerance)
 #define OBJECT_SIZE_TOL 0.05	//object size tolerance
 #define ONE_MILLIS 1000
-#define SLEEP_TIME 0*ONE_MILLIS
+#define SLEEP_TIME 1000*ONE_MILLIS
 #define SAMPLES_TO_AV 30000	//number of samples to compute mean position of workspace 30000 is the best
 #define SAMPLES_TO_LIM 2*SAMPLES_TO_AV	//number of samples to find the maximum distances of workspace
 
@@ -76,12 +76,12 @@ vector<double> x_steps = {
 
 //y is from 0-60, default 30
 vector<double> y_steps = {
-    30
+    0
 };
 
 //z is from 50-110, default 60
 vector<double> z_steps = {
-  110
+  70
 };
 
 //step of distance between the arms in metres 0.35-0.75, default 0.55
@@ -324,6 +324,8 @@ int main() {
                                 << workspace_box_volume << endl;
 
                     iteration_done = true;
+
+                    cout << "BOX VOLUME = " << workspace_box_volume << endl;
 
                    
 
