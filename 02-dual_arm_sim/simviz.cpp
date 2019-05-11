@@ -18,8 +18,8 @@ using namespace std;
 using namespace Eigen;
 
 const string world_file = "./resources/world.urdf";
-const string robot_file = "./resources/panda_arm_hand.urdf";
-const string robot_name = "PANDA";
+const string robot_file = "./resources/dual_arm_mobile.urdf";
+const string robot_name = "dual_arm_mobile";
 const string camera_name = "camera_fixed";
 
 // redis keys:
@@ -28,7 +28,6 @@ const std::string JOINT_ANGLES_KEY = "sai2::cs225a::panda_robot::sensors::q";
 const std::string JOINT_VELOCITIES_KEY = "sai2::cs225a::panda_robot::sensors::dq";
 // - read
 const std::string TORQUES_COMMANDED_KEY = "sai2::cs225a::panda_robot::actuators::fgc";
-const string CONTROLLER_RUNING_KEY = "sai2::cs225a::controller_running";
 
 RedisClient redis_client;
 
@@ -105,7 +104,7 @@ int main() {
 
 	// create window and make it current
 	glfwWindowHint(GLFW_VISIBLE, 0);
-	GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - PandaApplications", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - DUAL ARM", NULL, NULL);
 	glfwSetWindowPos(window, windowPosX, windowPosY);
 	glfwShowWindow(window);
 	glfwMakeContextCurrent(window);
@@ -118,7 +117,6 @@ int main() {
 	// cache variables
 	double last_cursorx, last_cursory;
 
-	redis_client.set(CONTROLLER_RUNING_KEY, "0");
 	fSimulationRunning = true;
 	thread sim_thread(simulation, robot, sim);
 	
@@ -221,7 +219,6 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim) {
 
 	int dof = robot->dof();
 	VectorXd command_torques = VectorXd::Zero(dof);
-	VectorXd gravity = VectorXd::Zero(dof);
 	redis_client.setEigenMatrixJSON(TORQUES_COMMANDED_KEY, command_torques);
 
 	// create a timer
@@ -236,20 +233,11 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim) {
 	while (fSimulationRunning) {
 		fTimerDidSleep = timer.waitForNextLoop();
 
-		if(redis_client.get(CONTROLLER_RUNING_KEY) == "1")
-		{
-			gravity.setZero();
-		}
-		else
-		{
-			robot->gravityVector(gravity);
-		}
-
 		// read arm torques from redis
 		command_torques = redis_client.getEigenMatrixJSON(TORQUES_COMMANDED_KEY);
 
 		// set torques to simulation
-		sim->setJointTorques(robot_name, command_torques + gravity);
+		sim->setJointTorques(robot_name, command_torques);
 
 		// integrate forward
 		// double curr_time = timer.elapsedTime();
