@@ -18,14 +18,19 @@ using namespace std;
 using namespace Eigen;
 
 const string world_file = "./resources/world.urdf";
-const string robot_file = "./resources/dual_arm_mobile.urdf";
-const string robot_name = "dual_arm_mobile";
+const string robot_file = "./resources/mobilebase.urdf";
+const string robot_name = "mobilebase";
 const string camera_name = "camera_fixed";
 
 // redis keys:
 // - write:
 const std::string JOINT_ANGLES_KEY = "sai2::cs225a::panda_robot::sensors::q";
 const std::string JOINT_VELOCITIES_KEY = "sai2::cs225a::panda_robot::sensors::dq";
+
+const std::string MOVE_X_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::x";
+const std::string MOVE_Y_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::y";
+const std::string ROT_Z_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::z";
+
 // - read
 const std::string TORQUES_COMMANDED_KEY = "sai2::cs225a::panda_robot::actuators::fgc";
 
@@ -51,6 +56,20 @@ bool fTransYn = false;
 bool fTransZp = false;
 bool fTransZn = false;
 bool fRotPanTilt = false;
+
+bool moveXp = false;
+bool moveYp = false;
+bool moveXn = false;
+bool moveYn = false;
+bool rotZp = false;
+bool rotZn = false;
+
+#define MOV_DIST 0.1
+
+//keyboard mobile moving variables:
+	double q_des_x = 0.0;
+	double q_des_y = 0.0;
+	double q_des_theta = 0.0;
 
 int main() {
 	cout << "Loading URDF world model file: " << world_file << endl;
@@ -119,7 +138,9 @@ int main() {
 
 	fSimulationRunning = true;
 	thread sim_thread(simulation, robot, sim);
-	
+
+	 
+		
 	// while window is open:
 	while (fSimulationRunning)
 	{
@@ -196,8 +217,47 @@ int main() {
 			Eigen::Matrix3d m_pan; m_pan = Eigen::AngleAxisd(compass, -cam_up_axis);
 			camera_pos = camera_lookat + m_pan*(camera_pos - camera_lookat);
 		}
+
+		//keyboard control of mobile base:
+		if (moveXp)
+		{
+			q_des_x += MOV_DIST;
+		}
+
+		if (moveXn)
+		{
+			q_des_x -= MOV_DIST;
+		}
+
+		if (moveYp)
+		{
+			q_des_y += MOV_DIST;
+		}
+
+		if (moveYn)
+		{
+			q_des_y -= MOV_DIST;
+		}
+
+		if(rotZp)
+		{
+			q_des_theta += MOV_DIST/10;
+		}
+
+		if(rotZn)
+		{
+			q_des_theta -= MOV_DIST/10;
+
+		}
+
+
 		graphics->setCameraPose(camera_name, camera_pos, cam_up_axis, camera_lookat);
 		glfwGetCursorPos(window, &last_cursorx, &last_cursory);
+
+		// write new robot state to redis
+		
+		
+		
 	}
 
 	// stop simulation
@@ -233,7 +293,12 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim) {
 	while (fSimulationRunning) {
 		fTimerDidSleep = timer.waitForNextLoop();
 
+		redis_client.set(MOVE_X_KEY, std::to_string(q_des_x));
+		redis_client.set(MOVE_Y_KEY, std::to_string(q_des_y));
+		redis_client.set(ROT_Z_KEY, std::to_string(q_des_theta));
+		
 		// read arm torques from redis
+		//cout << command_torques <<endl;
 		command_torques = redis_client.getEigenMatrixJSON(TORQUES_COMMANDED_KEY);
 
 		// set torques to simulation
@@ -252,6 +317,8 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim) {
 		// write new robot state to redis
 		redis_client.setEigenMatrixJSON(JOINT_ANGLES_KEY, robot->_q);
 		redis_client.setEigenMatrixJSON(JOINT_VELOCITIES_KEY, robot->_dq);
+		
+
 
 		//update last time
 		// last_time = curr_time;
@@ -301,6 +368,25 @@ void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
 			break;
 		case GLFW_KEY_Z:
 			fTransZn = set;
+			break;
+
+		case GLFW_KEY_I:
+			moveXp = set;
+			break;
+		case GLFW_KEY_K:
+			moveXn = set;
+			break;
+		case GLFW_KEY_L:
+			moveYp = set;
+			break;
+		case GLFW_KEY_J:
+			moveYn = set;
+			break;
+		case GLFW_KEY_M:
+			rotZp = set;
+			break;
+		case GLFW_KEY_N:
+			rotZn = set;
 			break;
 		default:
 			break;

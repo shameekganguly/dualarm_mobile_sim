@@ -18,7 +18,7 @@ void sighandler(int sig)
 using namespace std;
 using namespace Eigen;
 
-const string robot_file = "./resources/dual_arm_mobile.urdf";
+const string robot_file = "./resources/mobilebase.urdf";
 
 #define JOINT_CONTROLLER      0
 #define POSORI_CONTROLLER     1
@@ -45,6 +45,13 @@ const bool flag_simulation = true;
 
 const bool inertia_regularization = true;
 
+//for keyboard control of mobile manipulator
+const std::string MOVE_X_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::x";
+const std::string MOVE_Y_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::y";
+const std::string ROT_Z_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::z";
+
+
+
 int main() {
 
 	if(flag_simulation)
@@ -52,6 +59,7 @@ int main() {
 		JOINT_ANGLES_KEY = "sai2::cs225a::panda_robot::sensors::q";
 		JOINT_VELOCITIES_KEY = "sai2::cs225a::panda_robot::sensors::dq";
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::cs225a::panda_robot::actuators::fgc";
+		
 	}
 	else
 	{
@@ -86,7 +94,7 @@ int main() {
 	MatrixXd N_prec = MatrixXd::Identity(dof, dof);
 
 	// pose task
-	const string control_link = "link7R";
+	const string control_link = "torso";
 	const Vector3d control_point = Vector3d(0,0,0.07);
 	auto posori_task = new Sai2Primitives::PosOriTask(robot, control_link, control_point);
 
@@ -116,7 +124,27 @@ int main() {
 	joint_task->_kv = 15.0;
 
 	VectorXd q_init_desired = initial_q;
-	q_init_desired << -30.0, -15.0, -15.0, -105.0, 0.0, 90.0, 45.0, 0.0, 0.0;
+	//q_init_desired << -30.0, -15.0, -15.0, -105.0, 0.0, 90.0, 45.0, 0.0, 0.0;
+	double q_des_x = 0.0;
+	double q_des_y = 0.0;
+	double q_des_theta = 0.0;
+	double q_des_torso = 0.0;
+
+	/*
+	cout << "Please enter desired x: ";
+  	cin >> q_des_x;
+
+  	cout << "Please enter desired y: ";
+  	cin >> q_des_y;
+
+  	cout << "Please enter desired heading: ";
+  	cin >> q_des_theta;
+
+  	cout << "Please enter desired torso height: ";
+  	cin >> q_des_torso;
+	*/
+
+	q_init_desired << q_des_x, q_des_y, q_des_theta, q_des_torso;
 	q_init_desired *= M_PI/180.0;
 	joint_task->_desired_position = q_init_desired;
 
@@ -165,6 +193,18 @@ int main() {
 
 			command_torques = joint_task_torques;
 
+			// write new robot state to redis
+			q_des_x = std::stod(redis_client.get(MOVE_X_KEY));
+			q_des_y = std::stod(redis_client.get(MOVE_Y_KEY));
+			q_des_theta = std::stod(redis_client.get(ROT_Z_KEY));
+
+			cout << q_des_x <<  q_des_y << q_des_theta << endl;	
+
+			q_init_desired << q_des_x, q_des_y, q_des_theta, q_des_torso;
+			//q_init_desired *= M_PI/180.0;
+			joint_task->_desired_position = q_init_desired;
+
+			/*
 			if( (robot->_q - q_init_desired).norm() < 0.15 )
 			{
 				posori_task->reInitializeTask();
@@ -176,6 +216,8 @@ int main() {
 
 				state = POSORI_CONTROLLER;
 			}
+			*/
+
 		}
 
 		else if(state == POSORI_CONTROLLER)

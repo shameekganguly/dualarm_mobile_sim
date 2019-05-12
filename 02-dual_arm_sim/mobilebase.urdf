@@ -1,0 +1,209 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<robot
+  name="mobilebase">
+
+
+  <link
+    name="floor">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1" />
+      <inertia
+        ixx="0.1"
+        ixy="0.1"
+        ixz="0.1"
+        iyy="0.1"
+        iyz="0.1"
+        izz="0.1" />
+    </inertial>   
+    </link>
+
+
+    <link
+    name="base_x">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1" />
+      <inertia
+        ixx="0.1"
+        ixy="0.1"
+        ixz="0.1"
+        iyy="0.1"
+        iyz="0.1"
+        izz="0.1" />
+    </inertial>    
+    </link>
+
+ <link
+    name="base_y">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1" />
+      <inertia
+        ixx="0.1"
+        ixy="0.1"
+        ixz="0.1"
+        iyy="0.1"
+        iyz="0.1"
+        izz="0.1" />
+    </inertial>    
+    </link>
+
+
+
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.20597603154176 -0.154936709294081 0.905372074798901"
+        rpy="0 0 0" />
+      <mass
+        value="36.127263320367" />
+      <inertia
+        ixx="1.37369237520366"
+        ixy="-1.42483768662531E-15"
+        ixz="-7.93464889604043E-16"
+        iyy="0.331326784558858"
+        iyz="7.20907269469427E-16"
+        izz="1.37369237520365" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../../../Model/mobilebase/meshes/base_link.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <!-- <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../../../Model/mobilebase/meshes/base_link.obj" />
+      </geometry>
+    </collision> -->
+  </link>
+
+
+  <link
+    name="torso">
+    <inertial>
+      <origin
+        xyz="-2.77555756156289E-17 0.0983564804260974 0.115"
+        rpy="0 0 0" />
+      <mass
+        value="8.50250811972898" />
+      <inertia
+        ixx="0.01"
+        ixy="0.01"
+        ixz="0.01"
+        iyy="0.01"
+        iyz="0.01"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../../../Model/mobilebase/meshes/torso.obj" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <!-- <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../../../Model/mobilebase/meshes/torso.obj" />
+      </geometry>
+    </collision> -->
+  </link>
+
+  <joint
+    name="base_prismatic_x"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="floor" />
+    <child
+      link="base_x" />
+    <axis
+      xyz="1 0 0" />
+    <limit lower="-200" upper="200" effort="1000" velocity="1000" />
+  </joint>
+
+  <joint
+    name="base_prismatic_y"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_x" />
+    <child
+      link="base_y" />
+    <axis
+      xyz="0 1 0" />
+    <limit lower="-200" upper="200" effort="1000" velocity="1000" />
+  </joint>
+
+
+<joint
+    name="base_revolute"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_y" />
+    <child
+      link="base_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit lower="-200" upper="200" effort="1000" velocity="1000" />
+  </joint>
+
+
+
+  <joint
+    name="prismatic"
+    type="prismatic">
+    <origin
+      xyz="0.20408 -0.7946 0.4254"
+      rpy="1.5708 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="torso" />
+    <axis
+      xyz="0 1 0" />
+    <limit lower="-2.967" upper="2.967" effort="176" velocity="1.7104" />
+  </joint>
+</robot>
