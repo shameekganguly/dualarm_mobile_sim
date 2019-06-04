@@ -25,23 +25,17 @@ const string robot_file = "./resources/mobilebase.urdf";
 
 int state = JOINT_CONTROLLER;
 
-// redis keys:
-// - read:
-std::string JOINT_ANGLES_KEY;
-std::string JOINT_VELOCITIES_KEY;
-std::string JOINT_TORQUES_SENSED_KEY;
-// - write
-std::string JOINT_TORQUES_COMMANDED_KEY;
 
-// - model
-std::string MASSMATRIX_KEY;
-std::string CORIOLIS_KEY;
-std::string ROBOT_GRAVITY_KEY;
+
 
 unsigned long long controller_counter = 0;
 
-// const bool flag_simulation = false;
-const bool flag_simulation = true;
+
+	
+const std::string JOINT_ANGLES_KEY = "sai2::cs225a::panda_robot::sensors::q";
+const std::string JOINT_VELOCITIES_KEY = "sai2::cs225a::panda_robot::sensors::dq";
+const std::string JOINT_TORQUES_COMMANDED_KEY = "sai2::cs225a::panda_robot::actuators::fgc";
+
 
 const bool inertia_regularization = true;
 
@@ -54,24 +48,6 @@ const std::string ROT_Z_KEY = "sai2::dual_arm_sim::mobilebase::keycommand::z";
 
 int main() {
 
-	if(flag_simulation)
-	{
-		JOINT_ANGLES_KEY = "sai2::cs225a::panda_robot::sensors::q";
-		JOINT_VELOCITIES_KEY = "sai2::cs225a::panda_robot::sensors::dq";
-		JOINT_TORQUES_COMMANDED_KEY = "sai2::cs225a::panda_robot::actuators::fgc";
-		
-	}
-	else
-	{
-		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::actuators::fgc";
-
-		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
-		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
-		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::sensors::torques";
-		MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
-		CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
-		ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::sensors::model::robot_gravity";		
-	}
 
 	// start redis client
 	auto redis_client = RedisClient();
@@ -94,7 +70,7 @@ int main() {
 	MatrixXd N_prec = MatrixXd::Identity(dof, dof);
 
 	// pose task
-	const string control_link = "torso";
+	const string control_link = "link0R";
 	const Vector3d control_point = Vector3d(0,0,0.07);
 	auto posori_task = new Sai2Primitives::PosOriTask(robot, control_link, control_point);
 
@@ -130,22 +106,17 @@ int main() {
 	double q_des_theta = 0.0;
 	double q_des_torso = 0.0;
 
-	/*
-	cout << "Please enter desired x: ";
-  	cin >> q_des_x;
+	cout << q_init_desired.size() << endl;
 
-  	cout << "Please enter desired y: ";
-  	cin >> q_des_y;
-
-  	cout << "Please enter desired heading: ";
-  	cin >> q_des_theta;
-
-  	cout << "Please enter desired torso height: ";
+  	cout << "Please enter desired torso height in [m]: ";
   	cin >> q_des_torso;
-	*/
+	
 
-	q_init_desired << q_des_x, q_des_y, q_des_theta, q_des_torso;
-	q_init_desired *= M_PI/180.0;
+	q_init_desired(0) = q_des_x;
+	q_init_desired(1) = q_des_y;
+	q_init_desired(2) = q_des_theta;
+	q_init_desired(3) = q_des_torso;
+	
 	joint_task->_desired_position = q_init_desired;
 
 	// create a timer
@@ -154,6 +125,8 @@ int main() {
 	timer.setLoopFrequency(1000); 
 	double start_time = timer.elapsedTime(); //secs
 	bool fTimerDidSleep = true;
+
+	cout << " ---- Control the Mobile Base with Keys I,J,L,K,M,N in the window" << endl;
 
 	while (runloop) {
 		// wait for next scheduled loop
@@ -164,23 +137,10 @@ int main() {
 		robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
 		robot->_dq = redis_client.getEigenMatrixJSON(JOINT_VELOCITIES_KEY);
 
-		// update model
-		if(flag_simulation)
-		{
-			robot->updateModel();
-		}
-		else
-		{
-			robot->updateKinematics();
-			robot->_M = redis_client.getEigenMatrixJSON(MASSMATRIX_KEY);
-			if(inertia_regularization)
-			{
-				robot->_M(4,4) += 0.07;
-				robot->_M(5,5) += 0.07;
-				robot->_M(6,6) += 0.07;
-			}
-			robot->_M_inv = robot->_M.inverse();
-		}
+		
+		robot->updateModel();
+		
+		
 
 		if(state == JOINT_CONTROLLER)
 		{
@@ -198,12 +158,15 @@ int main() {
 			q_des_y = std::stod(redis_client.get(MOVE_Y_KEY));
 			q_des_theta = std::stod(redis_client.get(ROT_Z_KEY));
 
-			cout << q_des_x <<  q_des_y << q_des_theta << endl;	
+			//out << q_des_x <<  q_des_y << q_des_theta << endl;	
 
-			q_init_desired << q_des_x, q_des_y, q_des_theta, q_des_torso;
-			//q_init_desired *= M_PI/180.0;
+			q_init_desired(0) = q_des_x;
+			q_init_desired(1) = q_des_y;
+			q_init_desired(2) = q_des_theta;
 			joint_task->_desired_position = q_init_desired;
 
+
+			//Change state when the robot completes joint task
 			/*
 			if( (robot->_q - q_init_desired).norm() < 0.15 )
 			{
